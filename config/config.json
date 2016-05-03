@@ -1,5 +1,5 @@
 {
-	"socket_server": {
+    "socket_server": {
         "port": 8080,
         "log_level": 1
     },
