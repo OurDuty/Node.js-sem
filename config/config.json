@@ -1,0 +1,12 @@
+{
+	"socket_server": {
+        "port": 8080,
+        "log_level": 1
+    },
+    "http_server": {
+        "port": 3000
+    },
+    "app_secret": "",
+    "index_path": "public/index.html",
+    "points_in_row_to_win": 5
+}

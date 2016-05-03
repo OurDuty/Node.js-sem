@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Крестики-нолики</title>
+	<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+	<script src="http://code.jquery.com/jquery-latest.js"></script>
+	<script src="./index.js"></script>
+	<script src="./md5.js"></script>
+</head>
+<body id="body">
+
+<script src="//vk.com/js/api/openapi.js" type="text/javascript"></script>
+	<a href="#" onclick="VK.Auth.login(function(){location.reload()});">Login</a>
+	<a href="#" onclick="VK.Auth.logout(function(){location.reload()});">Logout</a>
+	<div id="enter_queue">Start new game</div>
+	<ul id="match_list"></ul>
+	
+
+</body>
+</html>
