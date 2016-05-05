@@ -68,35 +68,35 @@ io.sockets.on('connection', function (socket) {
 				multi.rpush(key, data.x);
 				multi.rpush(key, data.y);
 				multi.execAsync().then(function() {
-					redisClient.lrangeAsync(key, 0, -1).then(function(match_data) {
-						var players;
-						if (match_data[0] == user_id)
-							players = match_data.splice(0, 2);
-						else if (match_data[1] == user_id)
-							players = match_data.splice(0, 4);
-						else {
-							throw "err";
-						}
+					return redisClient.lrangeAsync(key, 0, -1);
+				}).then(function(match_data) {
+					var players;
+					if (match_data[0] == user_id)
+						players = match_data.splice(0, 2);
+					else if (match_data[1] == user_id)
+						players = match_data.splice(0, 4);
+					else {
+						throw "err";
+					}
 
-						if (checkWin(match_data, settings.points_in_row_to_win)) {
-		    				var winner_id = user_id;
-		    				var looser_id = (players[0]!=user_id)?players[0]:players[1];
+					if (checkWin(match_data, settings.points_in_row_to_win)) {
+	    				var winner_id = user_id;
+	    				var looser_id = (players[0]!=user_id)?players[0]:players[1];
 
-		    				var multi = redisClient.multi();
-		    				multi.lremAsync("user_"+winner_id, 1, match_id);
-		    				multi.lremAsync("user_"+looser_id, 1, match_id);
-		    				multi.execAsync().then(function() {
-			    				redisClient.hincrby(winner_id, "wins", 1);
-								redisClient.hincrby(looser_id, "loses", 1);
-								socket.emit('apply_winning_move', data);
-	    						socket.broadcast.emit('apply_winning_move', data);
-							});
-		    			} else {
-		    				socket.emit('apply_move', data);
-	    					socket.broadcast.emit('apply_move', data);
-		    			}
-				  	});
-				});
+	    				var multi = redisClient.multi();
+	    				multi.lremAsync("user_"+winner_id, 1, match_id);
+	    				multi.lremAsync("user_"+looser_id, 1, match_id);
+	    				multi.execAsync().then(function() {
+		    				redisClient.hincrby(winner_id, "wins", 1);
+							redisClient.hincrby(looser_id, "loses", 1);
+							socket.emit('apply_winning_move', data);
+    						socket.broadcast.emit('apply_winning_move', data);
+						});
+	    			} else {
+	    				socket.emit('apply_move', data);
+    					socket.broadcast.emit('apply_move', data);
+	    			}
+			  	});
 	    	});
 		}
 	});
