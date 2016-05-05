@@ -10,6 +10,6 @@
 	   	"istanbul": "*"
 	 },
 	 "scripts": {
-	   "test": "istanbul/lib/cli.js cover mocha/bin/_mocha -- -R spec ./test/*"
+	   "test": "istanbul cover _mocha -- -R spec ./test/*"
 	 }
 }
