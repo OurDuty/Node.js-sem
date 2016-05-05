@@ -3,5 +3,11 @@ node_js:
   - "4"
   - "stable"
 
-notificationa:
+notifications:
   email: false
+
+before_install:
+  - npm install -g codecov
+
+after_success:
+  - codecov
