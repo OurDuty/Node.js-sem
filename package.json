@@ -7,7 +7,8 @@
 	   	"bluebird": "*",
 	   	"istanbul": "0.3.5",
 	   	"mocha": "2.0.0",
-	   	"istanbul": "*"
+	   	"istanbul": "*",
+	   	"semaphore": "*"
 	 },
 	 "scripts": {
 	   "test": "istanbul cover _mocha -- -R spec ./test/*"

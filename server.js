@@ -3,6 +3,8 @@ var APP_SECRET = settings.app_secret;
 
 var http = require('http');
 
+var queue_sem = require('semaphore')(1);
+
 var express = require('express');
 var app = express();
 
@@ -12,7 +14,15 @@ var io = require('socket.io').listen(settings.socket_server.port);
 io.set('log level', settings.socket_server.log_level);
 
 var redis = require('redis');
-var redisClient = redis.createClient();
+
+var redisClient;
+try {
+	redisClient = redis.createClient();
+} catch (err) {
+	console.log(err);
+	process.exit(1);
+}
+
 
 var bluebird = require("bluebird");
 bluebird.promisifyAll(redis.RedisClient.prototype);
@@ -30,6 +40,33 @@ app.listen(settings.http_server.port, function () {
 });
 
 var queue = [];
+
+Array.observe(queue, function(changes) {
+	queue_sem.take(function() {
+	  if (queue.length >= 2) {
+			var player1 = queue.pop();
+			var player2 = queue.pop();
+			
+			var match_id = Date.now();
+			var multi = redisClient.multi();
+			multi.rpush('user_'+player1.user_id, match_id);
+			multi.rpush('user_'+player2.user_id, match_id);
+			multi.execAsync().then(function() {
+				var multi = redisClient.multi();
+				multi.rpush('match_'+match_id, player1.user_id);
+				multi.rpush('match_'+match_id, player2.user_id);
+				multi.execAsync().then(function() {
+					player1.socket.emit("start_game", match_id);
+					player2.socket.emit("start_game", match_id);
+				});
+			}).catch(function(e) {
+		    	queue.push(player1);
+		    	queue.push(player2);
+			});
+		}
+	});
+});
+
 io.sockets.on('connection', function (socket) {
 	socket.on('handshake', function (data) {
 		var str = "expire="+data.expire+"mid="+data.mid+"secret="+data.secret+"sid="+data.sid+APP_SECRET;
@@ -40,6 +77,8 @@ io.sockets.on('connection', function (socket) {
 
 			redisClient.existsAsync(user_id).then(function(err, ex) {
 				redisClient.hmset(user_id, "wins", 0, "loses", 0);
+			}).catch(function(e) {
+			    socket.emit('registration_failed');
 			});
 
 			socket.on('get_match_list', function () {
@@ -51,11 +90,17 @@ io.sockets.on('connection', function (socket) {
 	    	socket.on("reconnect_to_game", function (math_id) {
 			    redisClient.lrangeAsync('match_' + math_id, 0, -1).then(function(match_data) {
 					socket.emit("update_match_state", {"match_id": math_id, "history": match_data});
-			  	});
+			  	}).catch(function(e) {
+			    	socket.emit('reconnect_to_game_failed');
+				});
 	    	});
 
 			socket.on('enter_queue', function () {
-				queue.push({"socket": socket, "user_id": user_id});
+				var player = {"socket": socket, "user_id": user_id};
+				queue_sem.take(function() {
+					if (queue.indexOf(player))
+						queue.push();
+				});
 	    	});
 
 	    	socket.on('make_move', function (data) {
@@ -91,42 +136,20 @@ io.sockets.on('connection', function (socket) {
 							redisClient.hincrby(looser_id, "loses", 1);
 							socket.emit('apply_winning_move', data);
     						socket.broadcast.emit('apply_winning_move', data);
+						}).catch(function(e) {
+					    	throw "err";
 						});
 	    			} else {
 	    				socket.emit('apply_move', data);
     					socket.broadcast.emit('apply_move', data);
 	    			}
-			  	});
+			  	}).catch(function(e) {
+			    	socket.emit('move_restricted', data);
+				});
 	    	});
 		}
 	});
 });
-
-setInterval(function(){
-	while (queue.length >= 2) {
-		var player1 = queue.pop();
-		var player2 = queue.pop();
-
-		if (player1.user_id == player2.user_id) {
-			queue.push(player1);
-			continue;
-		}
-		
-		var match_id = Date.now();
-		var multi = redisClient.multi();
-		multi.rpush('user_'+player1.user_id, match_id);
-		multi.rpush('user_'+player2.user_id, match_id);
-		multi.execAsync().then(function() {
-			var multi = redisClient.multi();
-			multi.rpush('match_'+match_id, player1.user_id);
-			multi.rpush('match_'+match_id, player2.user_id);
-			multi.execAsync().then(function() {
-				player1.socket.emit("start_game", match_id);
-				player2.socket.emit("start_game", match_id);
-			});
-		});
-	}
-}, 5000);
 
 function checkWin(list, inRowToWin) {
 	// in fact, for the game we need to check jst that the last added point is a parent for a winning row
