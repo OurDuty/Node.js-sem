@@ -41,31 +41,30 @@ app.listen(settings.http_server.port, function () {
 
 var queue = [];
 
-Array.observe(queue, function(changes) {
-	queue_sem.take(function() {
-	  if (queue.length >= 2) {
-			var player1 = queue.pop();
-			var player2 = queue.pop();
-			
-			var match_id = Date.now();
+function updateQueue() {
+	if (queue.length >= 2) {
+		var player1 = queue.pop();
+		var player2 = queue.pop();
+		
+		var match_id = Date.now();
+		var multi = redisClient.multi();
+		multi.rpush('user_'+player1.user_id, match_id);
+		multi.rpush('user_'+player2.user_id, match_id);
+		multi.execAsync().then(function() {
 			var multi = redisClient.multi();
-			multi.rpush('user_'+player1.user_id, match_id);
-			multi.rpush('user_'+player2.user_id, match_id);
+			multi.rpush('match_'+match_id, player1.user_id);
+			multi.rpush('match_'+match_id, player2.user_id);
 			multi.execAsync().then(function() {
-				var multi = redisClient.multi();
-				multi.rpush('match_'+match_id, player1.user_id);
-				multi.rpush('match_'+match_id, player2.user_id);
-				multi.execAsync().then(function() {
-					player1.socket.emit("start_game", match_id);
-					player2.socket.emit("start_game", match_id);
-				});
-			}).catch(function(e) {
-		    	queue.push(player1);
-		    	queue.push(player2);
+				player1.socket.emit("start_game", match_id);
+				player2.socket.emit("start_game", match_id);
 			});
-		}
-	});
-});
+		}).catch(function(e) {
+	    	queue.push(player1);
+	    	queue.push(player2);
+		});
+	}
+};
+
 
 io.sockets.on('connection', function (socket) {
 	socket.on('handshake', function (data) {
@@ -98,8 +97,10 @@ io.sockets.on('connection', function (socket) {
 			socket.on('enter_queue', function () {
 				var player = {"socket": socket, "user_id": user_id};
 				queue_sem.take(function() {
-					if (queue.indexOf(player))
+					if (queue.indexOf(player)) {
 						queue.push();
+						updateQueue();
+					}
 				});
 	    	});
 
